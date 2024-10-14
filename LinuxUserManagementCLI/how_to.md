@@ -6,7 +6,7 @@
 
 ### Creating a User
 1. Press `N` to create a new user.
-2. Follow the prompts to enter the username, full name, and password.
+2. Follow the prompts to enter the username (can't be blank and same as other usernames), full name (optional), and password (can't be blank).
 
 ### Locking a User
 1. Select the user using the arrow keys.
