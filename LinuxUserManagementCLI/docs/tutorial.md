@@ -13,7 +13,7 @@ pip install blessed
 2. After installation unzip it to any directory
 
 ### Step 3: Run the CLI
-Run the user management CLI by executing:
+Run the user management CLI from a user having sudo priveleges by executing:
 ```bash
 cd $DIRECTORY
 python3 linux_cli_ui.py
