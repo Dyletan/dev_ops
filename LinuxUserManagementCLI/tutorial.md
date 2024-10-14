@@ -24,10 +24,10 @@ instead of $DIRECTORY provide the directory where linux_cli_ui.py is stored
 - Use the arrow keys `↑/↓` to scroll through the users.
 - Press `←/→` to change pages.
 - Press `N` to create a new user.
-1. Provide the username (can't be blank and same as other usernames).
-2. Provide the fullname (optional).
-3. Provide password (can't be blank).
+  - Provide the username (can't be blank and same as other usernames).
+  - Provide the fullname (optional).
+  - Provide password (can't be blank).
 - Press `Backspace` to delete a user.
-1. Press `Y` to proceed and anything else to cancel.
+  - Press `Y` to proceed and anything else to cancel.
 - Press `L` to lock a user and `U` to unlock a user.
 - Press `Q` to quit.
