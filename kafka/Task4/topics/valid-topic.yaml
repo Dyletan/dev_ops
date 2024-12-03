@@ -1,0 +1,7 @@
+topics:
+  - name: example-topic
+    partitions: 3
+    replication_factor: 3
+    configs:
+      cleanup.policy: delete
+      retention.ms: 604800000  # 7 days

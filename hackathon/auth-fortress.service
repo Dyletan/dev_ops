@@ -1,0 +1,16 @@
+[Unit]
+Description=AuthFortress OAuth2 Authorization Server (Containerized)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+WorkingDirectory=/opt/auth-fortress
+EnvironmentFile=/etc/auth-fortress/.env
+ExecStart=/usr/bin/docker events --filter 'container=auth-fortress' --filter 'container=auth-fortress-db'
+ExecStop=/bin/true
+
+[Install]
+WantedBy=multi-user.target

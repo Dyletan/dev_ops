@@ -1,0 +1,93 @@
+image: alpine:3.14
+
+stages:
+  - compare 
+  - check
+  - report
+
+variables:
+  CONFIG_OLD: "Task4/A.json"
+  CONFIG_NEW: "Task4/B.json"
+  DIFF_REPORT: "Task4/diff_report.json"
+
+compare_json:
+  stage: compare
+  script:
+    - apk update && apk add jq
+    - echo "Comparing JSON configurations..."
+    - |
+      jq -n --argfile old "$CONFIG_OLD" --argfile new "$CONFIG_NEW" '
+        {
+          added: ($new | to_entries | map(select(.key as $k | $old | has($k) | not)) | from_entries),
+          removed: ($old | to_entries | map(select(.key as $k | $new | has($k) | not)) | from_entries),
+          changed: ($new | to_entries | map(select(.key as $k | ($old | has($k)) and ($old[$k] != .value))) | from_entries),
+          unchanged: ($new | to_entries | map(select(.key as $k | ($old[$k] == .value))) | from_entries)
+        }
+      ' > "$DIFF_REPORT"
+    - echo "$DIFF_REPORT"
+  artifacts:
+    paths:
+      - $DIFF_REPORT
+    when: always
+    expire_in: 1 week
+
+feature_test:
+  stage: check
+  needs:
+    - job: compare_json
+      artifacts: true
+  script:
+    - apk update && apk add jq
+    - echo "Checking for feature flag changes..."
+    - |
+      if jq -e '.changed | has("feature_flag")' "$DIFF_REPORT"; then
+        echo "Feature flag change detected. Running feature tests..."
+      else
+        echo "No feature flag changes detected. Skipping job."
+        exit 0
+      fi
+
+deploy_api:
+  stage: check
+  needs:
+    - job: compare_json
+      artifacts: true
+  script:
+    - apk update && apk add jq
+    - echo "Checking for API URL changes..."
+    - |
+      if jq -e '.changed | has("api_url")' "$DIFF_REPORT"; then
+        echo "API URL changes detected. Running API deployment..."
+      else
+        echo "No API URL changes detected. Skipping job."
+        exit 0
+      fi
+
+database_migration:
+  stage: check
+  needs:
+    - job: compare_json
+      artifacts: true
+  script:
+    - apk update && apk add jq
+    - echo "Checking for database changes..."
+    - |
+      if jq -e '.changed | has("database")' "$DIFF_REPORT"; then
+        echo "Database changes detected. Running migration..."
+      else
+        echo "No database changes detected. Skipping job."
+        exit 0
+      fi
+
+report:
+  stage: report
+  needs: [compare_json, database_migration, feature_test, deploy_api]
+  script:
+    - apk update && apk add jq
+    - echo "Generating final report..."
+    - echo "Changes Summary:"
+    - cat "$DIFF_REPORT"
+  artifacts:
+    paths:
+      - "$DIFF_REPORT"
+    expire_in: 1 week

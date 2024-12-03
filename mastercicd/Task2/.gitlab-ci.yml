@@ -1,0 +1,65 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: golang:1.23
+  only:
+    - master
+    - /^release-.*$/    
+  script:
+    - cd Task2
+    - CGO_ENABLED=0 GOOS=linux go build -o ../go-api
+  artifacts:
+    paths:
+      - go-api
+
+deploy:
+  stage: deploy
+  image: ubuntu:latest
+  environment:
+    name: production
+    url: $APP_URL
+  when: manual
+  only:
+    - master
+    - /^release-.*$/
+  before_script:
+    - apt-get update && apt-get install -y openssh-client curl
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" > /tmp/id_rsa && chmod 600 /tmp/id_rsa && ssh-add /tmp/id_rsa
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+  script:
+    - |
+      ssh root@$SERVER_IP "systemctl stop go-api || true"
+      mkdir -p /opt/go-api
+      scp go-api root@$SERVER_IP:/opt/go-api/
+      scp Task2/go-api.service root@$SERVER_IP:/etc/systemd/system/
+      ssh root@$SERVER_IP "
+        chmod +x /opt/go-api/go-api
+        systemctl daemon-reload
+        systemctl restart go-api
+      "
+    
+    - |
+      for i in {1..5}; do
+        if curl -s "$APP_URL/health" | grep -q '"status":"ok"'; then
+          curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+            -d chat_id=${TELEGRAM_CHAT_ID} \
+            -d text="Deployment successful and service is healthy"
+          exit 0
+        fi
+        sleep 5
+      done
+      # get debug info
+      ssh root@$SERVER_IP "
+        systemctl status go-api
+        journalctl -u go-api.service -n 50 --no-pager
+        ss -tulpn | grep 8081
+      "
+      curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+        -d chat_id=${TELEGRAM_CHAT_ID} \
+        -d text="Deployment health check failed, please check the service"
+      exit 1

@@ -1,0 +1,41 @@
+stages: 
+  - deploy
+  - build
+
+deploy-job:
+  stage: deploy
+  image: hashicorp/vault:1.18.0
+  id_tokens:
+    VAULT_AUTH_TOKEN:
+      aud: http://${SERVER_IP}:8100
+  script:
+    - export VAULT_ADDR=http://${SERVER_IP}:8100
+    - export VAULT_TOKEN="$(vault write -field=token auth/jwt/login role=test_gitlab jwt=$VAULT_AUTH_TOKEN)"
+    - export PASSWORD="$(vault kv get -field=password secret/gitlab_ci)"
+    - echo $PASSWORD
+    - echo "PASSWORD=$PASSWORD" > env_vars_file
+  artifacts:
+    paths:
+      - env_vars_file
+
+build-job:
+  stage: build
+  image: golang:1.23.2
+  dependencies: 
+    - deploy-job
+  id_tokens:
+    VAULT_AUTH_TOKEN:
+      aud: http://${SERVER_IP}:8100
+  script:
+    - source env_vars_file
+    - export PSWD="$PASSWORD"
+
+    - cd Task3
+
+    - go mod tidy
+    - go build -o my_app main.go
+
+    - ./my_app
+
+  only:
+    - main

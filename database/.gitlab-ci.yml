@@ -1,0 +1,22 @@
+stages:
+    - module-pipeline
+
+production:
+  stage: module-pipeline
+  trigger:
+      include:
+          - task2/production/.gitlab-ci.yml
+      strategy: depend
+  only:
+      changes:
+          - task2/production/**/*
+
+test:
+  stage: module-pipeline
+  trigger:
+      include:
+          - task2/test/.gitlab-ci.yml
+      strategy: depend
+  only:
+      changes:
+          - task2/test/**/*

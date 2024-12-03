@@ -1,0 +1,79 @@
+stages:
+  - deploy
+  - validate
+  - migrate
+  - check
+
+variables:
+  FLYWAY_IMAGE: "flyway/flyway:11.0"
+  FLYWAY_CONF_DIR: "$CI_PROJECT_DIR/task2/production/conf"
+  FLYWAY_SQL_DIR: "$CI_PROJECT_DIR/task2/production/sql"
+  DB_CONTAINER_NAME: "task2_production_db"
+  MAIN_TF: "$CI_PROJECT_DIR/task2/production/main.tf"
+
+before_script:
+  - apt-get update && apt-get install -y openssh-client
+  - eval $(ssh-agent -s)
+  - echo "$SSH_PRIVATE_KEY" > /tmp/id_rsa && chmod 600 /tmp/id_rsa && ssh-add /tmp/id_rsa
+  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+
+deploy:
+  stage: deploy
+  script:
+    - |
+      echo "Creating remote directory"
+      ssh root@$SERVER_IP 'mkdir -p /tmp/scripts/task2_production_db'
+      echo "Copying main.tf to the remote server"
+      scp $MAIN_TF root@$SERVER_IP:/tmp/scripts/task2_production_db
+      echo "Deploying production database"
+      ssh root@$SERVER_IP << 'EOF'
+        cd /tmp/scripts/task2_production_db
+        terraform init
+        terraform apply --auto-approve
+      EOF
+
+validate:
+  stage: validate
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo "Validating Flyway migrations for Test..."
+    - docker run --rm -v "$FLYWAY_CONF_DIR:/flyway/conf" -v "$FLYWAY_SQL_DIR:/flyway/sql" $FLYWAY_IMAGE -configFiles=/flyway/conf/flyway.conf validate
+
+migrate:
+  stage: migrate
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo "Running Flyway migrations..."
+    - docker run --rm -v "$FLYWAY_CONF_DIR:/flyway/conf" -v "$FLYWAY_SQL_DIR:/flyway/sql" $FLYWAY_IMAGE -configFiles=/flyway/conf/flyway.conf migrate
+
+check:
+  stage: check
+  script:
+    - |
+      ssh root@$SERVER_IP << 'EOF'
+      DB_NAME="postgres"
+      DB_USER="postgres"
+      docker exec -i task2_production_db psql -U $DB_USER -d $DB_NAME -c "
+        -- Check functions
+        SELECT routine_name FROM information_schema.routines WHERE routine_name = 'get_recommendations_by_user_id';
+        SELECT routine_name FROM information_schema.routines WHERE routine_name = 'get_recommendations_by_device_id';
+
+        -- Check indexes
+        SELECT indexname FROM pg_indexes WHERE tablename = 'reaction';
+        SELECT indexname FROM pg_indexes WHERE tablename = 'movie';
+
+        -- Check materialized view
+        SELECT COUNT(*) FROM cached_movie_recommendations;
+      "
+      EOF

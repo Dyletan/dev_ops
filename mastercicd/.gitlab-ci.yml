@@ -1,0 +1,32 @@
+stages:
+  - module-pipeline
+
+masterGitlabCICDTask2:
+  stage: module-pipeline
+  trigger:
+    include:
+      - /Task2/.gitlab-ci.yml
+    strategy: depend
+  only:
+    changes:
+      - Task2/**/*
+
+masterGitlabCICDTask3:
+  stage: module-pipeline
+  trigger:
+    include:
+      - /Task3/.gitlab-ci.yml
+    strategy: depend
+  only:
+    changes:
+      - Task3/**/*
+
+masterGitlabCICDTask4:
+  stage: module-pipeline
+  trigger:
+    include:
+      - /Task4/.gitlab-ci.yml
+    strategy: depend
+  only:
+    changes:
+      - Task4/**/*

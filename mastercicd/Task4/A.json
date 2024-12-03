@@ -1,0 +1,5 @@
+{
+    "database": "old_db",
+    "api_url": "https://old.api.example.com",
+    "feature_flag": "off"
+}

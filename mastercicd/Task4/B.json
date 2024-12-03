@@ -1,0 +1,6 @@
+{
+    "database": "old_db",
+    "api_url": "https://new.api.example.com",
+    "feature_flag": "on",
+    "new_setting": "enabled"
+}

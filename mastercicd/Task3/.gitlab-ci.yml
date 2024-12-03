@@ -1,0 +1,42 @@
+stages:
+  - monitor
+  - remediate
+
+variables:
+  SSH_KEY: $SSH_PRIVATE_KEY  # Stored as secret in CI/CD
+
+before_script:
+  - echo "$SSH_KEY" > /tmp/id_rsa
+  - eval $(ssh-agent -s)
+  - chmod 600 /tmp/id_rsa
+  - ssh-add /tmp/id_rsa
+
+monitor:
+  stage: monitor
+  script:
+    - SERVICE_NAME="go-api"
+    - echo "Starting health check..."
+    # stop service to simulate failure
+    - ssh -o StrictHostKeyChecking=no root@$SERVER_IP "sudo systemctl stop $SERVICE_NAME"
+    - response=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/health")
+    - if [ "$response" -ne 200 ]; then
+        echo "Health check failed with status $response";
+        exit 1;
+      else
+        echo "Health check passed";
+      fi
+  allow_failure: false
+
+remediate:
+  stage: remediate
+  script:
+    - SERVICE_NAME="go-api"
+    - echo "Attempting to restart service on remote server..."
+    - ssh -o StrictHostKeyChecking=no root@134.209.234.151 "sudo systemctl restart $SERVICE_NAME && systemctl is-active --quiet $SERVICE_NAME"
+    - if [ $? -eq 0 ]; then
+        echo "Service restarted successfully.";
+      else
+        echo "Failed to restart service.";
+        exit 1;
+      fi
+  when: on_failure

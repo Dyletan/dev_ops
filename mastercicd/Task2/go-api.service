@@ -1,0 +1,13 @@
+[Unit]
+Description=Go REST API Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/go-api
+ExecStart=/opt/go-api/go-api
+Restart=always
+Environment=PORT=8090
+
+[Install]
+WantedBy=multi-user.target

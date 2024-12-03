@@ -1,0 +1,11 @@
+stages:
+  - update_nomad_file
+
+update_nomad:
+  stage: update_nomad_file
+  script:
+    - sed -i "s/job \"example\"/job \"$CI_PROJECT_ID\"/" example.nomad
+    - cat example.nomad
+  artifacts:
+    paths:
+      - example.nomad

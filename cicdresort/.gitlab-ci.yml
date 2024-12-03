@@ -1,0 +1,32 @@
+stages:
+    - module-pipeline
+
+cicdResortTask3:
+    stage: module-pipeline
+    trigger:
+        include:
+            - /Task3/.gitlab-ci.yml
+        strategy: depend
+    only:
+        changes:
+            - Task3/**/*
+
+cicdResortTask4:
+    stage: module-pipeline
+    trigger:
+        include:
+            - /Task4/.gitlab-ci.yml
+        strategy: depend
+    only:
+        changes:
+            - Task4/**/*
+
+cicdResortTask5:
+    stage: module-pipeline
+    trigger:
+        include:
+            - /Task5/.gitlab-ci.yml
+        strategy: depend
+    only:
+        changes:
+            - Task5/**/*

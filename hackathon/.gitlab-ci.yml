@@ -1,0 +1,85 @@
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  script:
+    - docker build -t auth-fortress:latest .
+    - docker save auth-fortress:latest > auth-fortress.tar
+  artifacts:
+    paths:
+      - auth-fortress.tar
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  before_script:
+    - apt-get update && apt-get install -y openssh-client curl net-tools
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" > /tmp/id_rsa && chmod 600 /tmp/id_rsa && ssh-add /tmp/id_rsa
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+  script:
+    # First stop the service to prevent it from interfering
+    - ssh root@$SERVER_IP "systemctl stop auth-fortress || true"
+    
+    # Setup directories
+    - ssh root@$SERVER_IP "mkdir -p /opt/auth-fortress/logs"
+    - ssh root@$SERVER_IP "mkdir -p /etc/auth-fortress"
+    
+    # Clean up existing containers
+    - ssh root@$SERVER_IP "cd /opt/auth-fortress && docker-compose down --remove-orphans || true"
+    - ssh root@$SERVER_IP "docker rm -f auth-fortress auth-fortress-db || true"
+    - ssh root@$SERVER_IP "docker network rm auth-fortress_auth-fortress-network || true"
+    
+    # Copy files
+    - scp auth-fortress.tar root@$SERVER_IP:/tmp/
+    # - scp Dockerfile docker-compose.yml go.mod go.sum main.go root@$SERVER_IP:/opt/auth-fortress/
+    - scp docker-compose.yml root@$SERVER_IP:/opt/auth-fortress/
+    - scp auth-fortress.service root@$SERVER_IP:/etc/systemd/system/
+    
+    # Create .env file
+    - |
+      ssh root@$SERVER_IP "cat > /etc/auth-fortress/.env << EOL
+      POSTGRES_USER=${POSTGRES_USER}
+      DB_PASSWORD=${DB_PASSWORD}
+      DBNAME=${DBNAME}
+      JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      DB_PORT=5432
+      PORT=8080
+      EOL"
+    - ssh root@$SERVER_IP chmod 644 /etc/auth-fortress/.env
+    # Load and start containers
+    - ssh root@$SERVER_IP "cd /opt/auth-fortress && docker load < /tmp/auth-fortress.tar"
+    - ssh root@$SERVER_IP "cd /opt/auth-fortress && docker-compose up -d"
+    - ssh root@$SERVER_IP "rm /tmp/auth-fortress.tar"
+    
+    # Start the monitoring service
+    - ssh root@$SERVER_IP "systemctl daemon-reload"
+    - ssh root@$SERVER_IP "systemctl enable auth-fortress"
+    - ssh root@$SERVER_IP "systemctl start auth-fortress"
+    - ssh root@$SERVER_IP "systemctl status auth-fortress --no-pager"
+    
+    # Verify deployment
+    - |
+      ssh root@$SERVER_IP "
+        echo 'Verifying deployment...'
+        if ! docker ps | grep auth-fortress; then
+          echo 'Container not running'
+          docker-compose -f /opt/auth-fortress/docker-compose.yml logs
+          exit 1
+        fi
+      "
+      echo "Containers are set up"
+  only:
+    - main

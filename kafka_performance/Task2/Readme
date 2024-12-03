@@ -1,0 +1,12 @@
+pip install kafka-python
+
+sudo apt update
+
+sudo apt install libsnappy-dev
+pip install python-snappy
+
+sudo apt install liblz4-dev
+pip install lz4
+
+sudo apt-get install libzstd1
+pip install zstandard

@@ -1,0 +1,13 @@
+acls:
+  - topic: example-topic
+    users:
+      - name: service-a
+        permissions:
+          - read
+          - write
+      - name: service-b
+        permissions:
+          - read
+      - name: admin
+        permissions:
+          - admin

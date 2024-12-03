@@ -1,0 +1,80 @@
+stages:
+  - validate
+  - deploy
+
+variables:
+  KAFKA_BOOTSTRAP_SERVERS: "167.99.244.46:29092,167.99.244.46:29093,167.99.244.46:29094"
+
+validate_configs:
+  stage: validate
+  image: python:3.9
+  before_script:
+    - pip install kafka-python pyyaml
+  script:
+    - python Task4/scripts/validate-topics.py
+    - python Task4/scripts/validate-acls.py
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+
+deploy_changes:
+  stage: deploy
+  image: bitnami/kafka:latest
+  before_script:
+    - curl -L https://github.com/mikefarah/yq/releases/download/v4.15.1/yq_linux_amd64 -o /tmp/yq
+    - chmod +x /tmp/yq
+    - export PATH=$PATH:/tmp
+
+    - curl -L https://github.com/indygreg/python-build-standalone/releases/download/20240107/cpython-3.12.1+20240107-x86_64_v2-unknown-linux-gnu-install_only.tar.gz -o /tmp/python.tar.gz
+    - mkdir -p /tmp/python
+    - tar -xzf /tmp/python.tar.gz -C /tmp/python
+    - export PATH=/tmp/python/python/bin:$PATH
+    - pip install pyyaml
+  script:
+    - |
+      for topic_file in Task4/topics/*.yaml; do
+        if [ -f "$topic_file" ]; then
+          topic_name=$(yq eval '.topics[0].name' "$topic_file")
+          delete=$(yq eval '.topics[0].delete' "$topic_file")
+          
+          if [ "$delete" == "true" ]; then
+            echo "Deleting topic: $topic_name"
+            kafka-topics.sh --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS \
+              --delete --topic "$topic_name"
+          else
+            partitions=$(yq eval '.topics[0].partitions' "$topic_file")
+            replication=$(yq eval '.topics[0].replication_factor' "$topic_file")
+            
+            kafka-topics.sh --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS \
+              --create --if-not-exists \
+              --topic "$topic_name" \
+              --partitions "$partitions" \
+              --replication-factor "$replication"
+            
+            # Apply configurations
+            if yq eval '.topics[0].configs' "$topic_file" | grep -q '^[^n]'; then
+              echo "Applying configs for topic: $topic_name"
+              config_keys=$(yq eval '.topics[0].configs | keys | .[]' "$topic_file")
+              
+              for key in $config_keys; do
+                value=$(yq eval ".topics[0].configs.[\"$key\"]" "$topic_file")
+                echo "Setting config: $key=$value"
+                
+                kafka-configs.sh --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS \
+                  --entity-type topics --entity-name "$topic_name" \
+                  --alter --add-config "${key}=${value}"
+              done
+            fi
+          fi
+        fi
+      done
+
+      for acl_file in Task4/acls/*.yaml; do
+        if [ -f "$acl_file" ]; then
+          while IFS= read -r line; do
+            kafka-acls.sh --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS $line
+          done < <(python3 Task4/scripts/generate_acl_commands.py "$acl_file")
+        fi
+      done
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+  when: manual

@@ -1,0 +1,34 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: auth-fortress:latest
+    container_name: auth-fortress
+    environment:
+      - JWT_SECRET_KEY=Ka0uDdP+1uLc4cKU+d4bK2bLdjp/XvhhodJBT4+n1EI=
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres   
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:13-alpine
+    ports:
+      - "5432:5432"
+    container_name: auth-fortress-db
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5 
+

@@ -1,0 +1,15 @@
+stages:
+  - module-pipeline
+
+KafkaTask4:
+  stage: module-pipeline
+  trigger:
+    include:
+      - /Task4/.gitlab-ci.yml
+    strategy: depend
+  variables:
+    IS_MERGE_APPROVED: $CI_MERGE_REQUEST_APPROVED == "true"'
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # - changes:
+    #     - Task4/**/*

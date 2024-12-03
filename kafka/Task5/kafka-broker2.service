@@ -1,0 +1,15 @@
+[Unit]
+Description=Kafka Broker 2
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/server-2.properties
+ExecStop=/opt/kafka/bin/kafka-server-stop.sh
+Restart=on-failure
+User=kafka
+LimitNOFILE=32000
+Environment="KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:/opt/kafka/config/log4j.properties -Dkafka.logs.dir=/var/log/kafka/broker2"
+
+[Install]
+WantedBy=multi-user.target

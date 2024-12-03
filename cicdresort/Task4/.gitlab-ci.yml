@@ -1,0 +1,39 @@
+variables:
+  DOCKER_IMAGE_NAME: "go-api"
+  DOCKER_IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  IMAGE_TAG: "${NEXUS_DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - name: docker:20.10.16-dind
+      command: ["--insecure-registry=167.99.244.46:8083"]
+  before_script:
+    - echo "Logging in to Nexus Docker registry..."
+    - echo "$NEXUS_PASSWORD" | docker login -u "$NEXUS_USER" --password-stdin $NEXUS_DOCKER_REGISTRY
+  script:
+    - echo "Building Docker image..."
+    - docker build -t $IMAGE_TAG -f Task4/Dockerfile Task4/
+    - docker tag $IMAGE_TAG "${NEXUS_DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:latest"
+    - echo "Pushing Docker image to Nexus repository..."
+    - docker push $IMAGE_TAG
+    - docker push "${NEXUS_DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:latest"
+
+deploy:
+  stage: deploy
+  image: docker:20.10.16
+  services:
+    - name: docker:20.10.16-dind
+      command: ["--insecure-registry=167.99.244.46:8083"]
+  before_script:
+    - echo "$NEXUS_PASSWORD" | docker login -u "$NEXUS_USER" --password-stdin $NEXUS_DOCKER_REGISTRY
+  script:
+    - echo "Pulling Docker image..."
+    - docker pull ${IMAGE_TAG}
+    - echo "Verifying the Docker image..."
+    - docker images ${IMAGE_TAG}
